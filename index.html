@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Bill Splitter</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body class="bg-gray-100 flex flex-col items-center p-6">
+    <h1 class="text-2xl font-bold mb-4">Bill Splitter</h1>
+
+    <div class="bg-white p-6 rounded-lg shadow-md w-96">
+      <div>
+        <h3 class="font-bold mt-4">People</h3>
+        <div id="peopleList"></div>
+        <button
+          onclick="addPerson()"
+          class="bg-blue-500 text-white px-4 py-2 rounded mt-2"
+        >
+          ➕ Add Person
+        </button>
+      </div>
+
+      <div>
+        <h3 class="font-bold mt-4">Items</h3>
+        <div id="itemList"></div>
+        <button
+          onclick="addItem()"
+          class="bg-purple-500 text-white px-4 py-2 rounded mt-2"
+        >
+          ➕ Add Item
+        </button>
+      </div>
+
+      <h3 class="mt-6 text-lg font-bold">Item Breakdown</h3>
+      <table class="w-full mt-2 border-collapse border border-gray-300 text-sm">
+        <thead>
+          <tr class="bg-gray-200">
+            <th class="border border-gray-300 p-2">Item</th>
+            <th class="border border-gray-300 p-2">Final Cost</th>
+            <th class="border border-gray-300 p-2">Shared By</th>
+            <th class="border border-gray-300 p-2">Shared Cost</th>
+          </tr>
+        </thead>
+        <tbody id="itemTableBody"></tbody>
+      </table>
+
+      <button
+        onclick="splitBill()"
+        class="bg-green-500 text-white px-4 py-2 rounded mt-4 w-full"
+      >
+        💰 Split Bill
+      </button>
+      <h3 id="result" class="mt-4 font-bold"></h3>
+    </div>
+
+    <script>
+      let people = [];
+      let items = [];
+
+      function addPerson() {
+        let personId = people.length;
+        people.push({ name: "" });
+
+        let container = document.createElement("div");
+        container.className = "p-2 bg-gray-200 rounded-lg mt-2 flex";
+        container.innerHTML = `
+                <input type="text" placeholder="Person Name" class="border p-2 w-full" onchange="updateName(${personId}, this.value)">
+            `;
+        document.getElementById("peopleList").appendChild(container);
+      }
+
+      function updateName(id, name) {
+        people[id].name = name;
+        updateTable();
+      }
+
+      function addItem() {
+        let itemId = items.length;
+        items.push({ name: "", cost: 0, sharedBy: [], tax: false });
+
+        let container = document.createElement("div");
+        container.className = "p-3 bg-gray-200 rounded-lg mt-2";
+        container.innerHTML = `
+                <input type="text" placeholder="Item Name" class="border p-2 w-full mb-2" onchange="updateItem(${itemId}, 'name', this.value)">
+                <input type="number" placeholder="Item Cost" class="border p-2 w-full mb-2" onchange="updateItem(${itemId}, 'cost', this.value)">
+                <label class="flex items-center">
+                    <input type="checkbox" onchange="updateItem(${itemId}, 'tax', this.checked)" class="mr-2"> Apply 13% Tax
+                </label>
+                <label class="flex items-center mt-2">
+                    <input type="checkbox" onchange="toggleSharedByAll(${itemId}, this.checked)" class="mr-2"> Shared by All
+                </label>
+                <label class="block font-semibold mt-2">Shared By:</label>
+                <div id="sharedBy-${itemId}" class="mb-2"></div>
+            `;
+
+        document.getElementById("itemList").appendChild(container);
+        updateSharedByCheckboxes(itemId);
+        updateTable();
+      }
+
+      function updateItem(id, field, value) {
+        if (field === "cost") value = parseFloat(value) || 0;
+        if (field === "tax") value = !!value;
+        items[id][field] = value;
+        updateTable();
+      }
+
+      function toggleSharedByAll(itemId, isChecked) {
+        items[itemId].sharedBy = isChecked
+          ? people.map((_, index) => index)
+          : [];
+        updateSharedByCheckboxes(itemId, isChecked);
+        updateTable();
+      }
+
+      function updateSharedByCheckboxes(itemId, allChecked = false) {
+        let sharedByContainer = document.getElementById(`sharedBy-${itemId}`);
+        sharedByContainer.innerHTML = "";
+
+        people.forEach((person, index) => {
+          let checkbox = document.createElement("input");
+          checkbox.type = "checkbox";
+          checkbox.value = index;
+          checkbox.className = "mr-1";
+          checkbox.checked =
+            allChecked || items[itemId].sharedBy.includes(index);
+          checkbox.onchange = () =>
+            updateItemSharedBy(itemId, index, checkbox.checked);
+
+          let label = document.createElement("label");
+          label.innerText = person.name || `Person ${index + 1}`;
+          label.className = "mr-3";
+
+          sharedByContainer.appendChild(checkbox);
+          sharedByContainer.appendChild(label);
+        });
+      }
+
+      function updateItemSharedBy(itemId, personId, isChecked) {
+        if (isChecked) {
+          if (!items[itemId].sharedBy.includes(personId)) {
+            items[itemId].sharedBy.push(personId);
+          }
+        } else {
+          items[itemId].sharedBy = items[itemId].sharedBy.filter(
+            (id) => id !== personId
+          );
+        }
+        updateTable();
+      }
+
+      function updateTable() {
+        let tableBody = document.getElementById("itemTableBody");
+        tableBody.innerHTML = "";
+
+        items.forEach((item) => {
+          let finalCost = item.tax ? item.cost * 1.13 : item.cost;
+          let sharedCount = item.sharedBy.length;
+          let sharedCost =
+            sharedCount > 0 ? (finalCost / sharedCount).toFixed(2) : "N/A";
+          let sharedNames =
+            item.sharedBy
+              .map((id) => people[id].name || `Person ${id + 1}`)
+              .join(", ") || "N/A";
+
+          let row = `<tr>
+                    <td class="border border-gray-300 p-2">${item.name}</td>
+                    <td class="border border-gray-300 p-2">$${finalCost.toFixed(
+                      2
+                    )}</td>
+                    <td class="border border-gray-300 p-2">${sharedNames}</td>
+                    <td class="border border-gray-300 p-2">$${sharedCost}</td>
+                </tr>`;
+          tableBody.innerHTML += row;
+        });
+      }
+
+      function splitBill() {
+        let individualCosts = Array(people.length).fill(0);
+
+        items.forEach((item) => {
+          let finalCost = item.tax ? item.cost * 1.13 : item.cost;
+          if (item.sharedBy.length > 0) {
+            let sharePerPerson = finalCost / item.sharedBy.length;
+            item.sharedBy.forEach((personId) => {
+              individualCosts[personId] += sharePerPerson;
+            });
+          }
+        });
+
+        document.getElementById("result").innerHTML = people
+          .map(
+            (person, index) =>
+              `${person.name || "Person"} pays: $${individualCosts[
+                index
+              ].toFixed(2)}`
+          )
+          .join("<br>");
+      }
+    </script>
+  </body>
+</html>
